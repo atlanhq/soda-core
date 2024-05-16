@@ -39,6 +39,7 @@ class AthenaDataSource(DataSource):
 
     def connect(self):
         try:
+            print(self.aws_credentials)
             self.connection = pyathena.connect(
                 profile_name=self.aws_credentials.profile_name,
                 aws_access_key_id=self.aws_credentials.access_key_id,
