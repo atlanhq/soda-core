@@ -56,6 +56,7 @@ class AwsCredentials:
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
             aws_session_token=self.session_token,
+            aws_external_id=self.external_id,
         )
 
         assumed_role_object = self.sts_client.assume_role(RoleArn=self.role_arn, RoleSessionName=role_session_name)
