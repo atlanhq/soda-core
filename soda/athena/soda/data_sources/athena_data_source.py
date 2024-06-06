@@ -39,7 +39,7 @@ class AthenaDataSource(DataSource):
 
     def connect(self):
         try:
-            if self.aws_credentials.role_arn:
+            if self.aws_credentials.external_id:
                 sts_client = boto3.client(
                     'sts',
                     aws_access_key_id=self.aws_credentials.access_key_id,
