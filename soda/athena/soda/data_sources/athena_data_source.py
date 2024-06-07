@@ -49,7 +49,7 @@ class AthenaDataSource(DataSource):
                 assumed_role = sts_client.assume_role(
                     RoleArn=self.aws_credentials.role_arn,
                     RoleSessionName="SodaSession",
-                    ExternalId=self.aws_credentials.external_id  # Add this line
+                    ExternalId=self.aws_credentials.external_id
                 )
                 credentials = assumed_role['Credentials']
                 self.connection = pyathena.connect(
@@ -58,6 +58,7 @@ class AthenaDataSource(DataSource):
                     s3_staging_dir=self.athena_staging_dir,
                     region_name=self.aws_credentials.region_name,
                     role_arn=self.aws_credentials.role_arn,
+                    external_id=self.aws_credentials.external_id,
                     catalog_name=self.catalog,
                     work_group=self.work_group,
                     schema_name=self.schema,
