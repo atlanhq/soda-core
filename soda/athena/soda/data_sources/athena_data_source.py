@@ -40,6 +40,7 @@ class AthenaDataSource(DataSource):
     def connect(self):
         try:
             if self.aws_credentials.external_id:
+                print(self.aws_credentials)
                 sts_client = boto3.client(
                     'sts',
                     aws_access_key_id=self.aws_credentials.access_key_id,
@@ -51,6 +52,8 @@ class AthenaDataSource(DataSource):
                     RoleSessionName="SodaSession",
                     ExternalId=self.aws_credentials.external_id
                 )
+                print(assumed_role)
+                print(assumed_role['Credentials'])
                 credentials = assumed_role['Credentials']
                 self.connection = pyathena.connect(
                     aws_access_key_id=credentials['AccessKeyId'],
