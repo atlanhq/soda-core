@@ -23,7 +23,8 @@ class AthenaDataSource(DataSource):
         data_source_properties: dict,
     ):
         super().__init__(logs, data_source_name, data_source_properties)
-        print("shreyas from athena data source init\n" + data_source_properties)
+        print("shreyas from athena data source init\n" )
+        print(data_source_properties)
         self.athena_staging_dir = data_source_properties.get("staging_dir")
         self.catalog = data_source_properties.get("catalog")
         self.work_group = data_source_properties.get("work_group")
@@ -40,7 +41,8 @@ class AthenaDataSource(DataSource):
     def connect(self):
         try:
             if self.aws_credentials.external_id:
-                print("shreyas\n" + self.aws_credentials)
+                print("shreyas\n" )
+                print(self.aws_credentials)
                 sts_client = boto3.client(
                     'sts',
                     aws_access_key_id=self.aws_credentials.access_key_id,
