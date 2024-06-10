@@ -62,9 +62,6 @@ class AthenaDataSource(DataSource):
                     region_name=self.aws_credentials.region_name,
                     role_arn=self.aws_credentials.role_arn,
                     external_id=self.aws_credentials.external_id,
-                    catalog_name=self.catalog,
-                    work_group=self.work_group,
-                    schema_name=self.schema,
                     aws_session_token=credentials['SessionToken']
                 )
             else:
