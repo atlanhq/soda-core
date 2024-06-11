@@ -51,6 +51,7 @@ class AwsCredentials:
         return isinstance(self.role_arn, str)
 
     def assume_role(self, role_session_name: str):
+        print("shreyas from assume role")
         aws = boto3.session.Session(profile_name=self.profile_name) if self.profile_name else boto3
         self.sts_client = aws.client(
             "sts",
