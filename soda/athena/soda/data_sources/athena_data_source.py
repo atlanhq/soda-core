@@ -44,12 +44,7 @@ class AthenaDataSource(DataSource):
                 print("shreyas from connect\n" )
                 print(self.aws_credentials)
                 print(self.aws_credentials.external_id)
-                sts_client = boto3.client(
-                    'sts',
-                    aws_access_key_id=self.aws_credentials.access_key_id,
-                    aws_secret_access_key=self.aws_credentials.secret_access_key,
-                    region_name=self.aws_credentials.region_name,
-                 )
+                sts_client = boto3.client('sts', region_name=self.aws_credentials.region_name)
                 assumed_role = sts_client.assume_role(
                      RoleArn=self.aws_credentials.role_arn,
                      RoleSessionName="SodaSession",
