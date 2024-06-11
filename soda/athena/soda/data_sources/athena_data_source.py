@@ -40,45 +40,45 @@ class AthenaDataSource(DataSource):
 
     def connect(self):
         try:
-            if self.aws_credentials.external_id:
-                print("shreyas\n" )
-                print(self.aws_credentials)
-                sts_client = boto3.client(
-                    'sts',
-                    aws_access_key_id=self.aws_credentials.access_key_id,
-                    aws_secret_access_key=self.aws_credentials.secret_access_key,
-                    region_name=self.aws_credentials.region_name,
-                )
-                assumed_role = sts_client.assume_role(
-                    RoleArn=self.aws_credentials.role_arn,
-                    RoleSessionName="SodaSession",
-                    ExternalId=self.aws_credentials.external_id
-                )
-                print(assumed_role)
-                print(assumed_role['Credentials'])
-                credentials = assumed_role['Credentials']
-                self.connection = pyathena.connect(
-                    aws_access_key_id=credentials['AccessKeyId'],
-                    aws_secret_access_key=credentials['SecretAccessKey'],
-                    s3_staging_dir=self.athena_staging_dir,
-                    region_name=self.aws_credentials.region_name,
-                    role_arn=self.aws_credentials.role_arn,
-                    external_id=self.aws_credentials.external_id,
-                    aws_session_token=credentials['SessionToken']
-                )
-            else:
-                self.connection = pyathena.connect(
-                    profile_name=self.aws_credentials.profile_name,
-                    aws_access_key_id=self.aws_credentials.access_key_id,
-                    aws_secret_access_key=self.aws_credentials.secret_access_key,
-                    s3_staging_dir=self.athena_staging_dir,
-                    region_name=self.aws_credentials.region_name,
-                    role_arn=self.aws_credentials.role_arn,
-                    external_id=self.aws_credentials.external_id,
-                    catalog_name=self.catalog,
-                    work_group=self.work_group,
-                    schema_name=self.schema,
-                )
+            # if self.aws_credentials.external_id:
+            #     print("shreyas\n" )
+            #     print(self.aws_credentials)
+            #     sts_client = boto3.client(
+            #         'sts',
+            #         aws_access_key_id=self.aws_credentials.access_key_id,
+            #         aws_secret_access_key=self.aws_credentials.secret_access_key,
+            #         region_name=self.aws_credentials.region_name,
+            #     )
+            #     assumed_role = sts_client.assume_role(
+            #         RoleArn=self.aws_credentials.role_arn,
+            #         RoleSessionName="SodaSession",
+            #         ExternalId=self.aws_credentials.external_id
+            #     )
+            #     print(assumed_role)
+            #     print(assumed_role['Credentials'])
+            #     credentials = assumed_role['Credentials']
+            #     self.connection = pyathena.connect(
+            #         aws_access_key_id=credentials['AccessKeyId'],
+            #         aws_secret_access_key=credentials['SecretAccessKey'],
+            #         s3_staging_dir=self.athena_staging_dir,
+            #         region_name=self.aws_credentials.region_name,
+            #         role_arn=self.aws_credentials.role_arn,
+            #         external_id=self.aws_credentials.external_id,
+            #         aws_session_token=credentials['SessionToken']
+            #     )
+          #  else:
+            self.connection = pyathena.connect(
+                profile_name=self.aws_credentials.profile_name,
+                aws_access_key_id=self.aws_credentials.access_key_id,
+                aws_secret_access_key=self.aws_credentials.secret_access_key,
+                s3_staging_dir=self.athena_staging_dir,
+                region_name=self.aws_credentials.region_name,
+                role_arn=self.aws_credentials.role_arn,
+                external_id=self.aws_credentials.external_id,
+                catalog_name=self.catalog,
+                work_group=self.work_group,
+                schema_name=self.schema,
+            )
 
             return self.connection
         except Exception as e:

@@ -30,6 +30,8 @@ class AwsCredentials:
         access_key_id = configuration.get("access_key_id")
         if not isinstance(access_key_id, str):
             return None
+        print("shreyas from aws credential class printing externalId")
+        print(f"from config {configuration.get('external_id')}")
         return AwsCredentials(
             access_key_id=access_key_id,
             secret_access_key=configuration.get("secret_access_key"),
@@ -56,11 +58,11 @@ class AwsCredentials:
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
             aws_session_token=self.session_token,
-            aws_external_id=self.external_id,
         )
-
-        assumed_role_object = self.sts_client.assume_role(RoleArn=self.role_arn, RoleSessionName=role_session_name)
+        assumed_role_object = self.sts_client.assume_role(RoleArn=self.role_arn, RoleSessionName=role_session_name, ExternalId=self.external_id)
         credentials_dict = assumed_role_object["Credentials"]
+        print("shreyas from aws credential class printing creds\n")
+        print(assumed_role_object["Credentials"])
         return AwsCredentials(
             region_name=self.region_name,
             access_key_id=credentials_dict["AccessKeyId"],
