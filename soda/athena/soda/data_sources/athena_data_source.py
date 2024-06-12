@@ -1,5 +1,4 @@
 from __future__ import annotations
-import boto3
 import logging
 from datetime import datetime
 
@@ -23,7 +22,6 @@ class AthenaDataSource(DataSource):
         data_source_properties: dict,
     ):
         super().__init__(logs, data_source_name, data_source_properties)
-        print("shreyas from athena data source init\n" )
         print(data_source_properties)
         self.athena_staging_dir = data_source_properties.get("staging_dir")
         self.catalog = data_source_properties.get("catalog")
