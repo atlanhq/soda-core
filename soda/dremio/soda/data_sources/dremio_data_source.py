@@ -67,12 +67,18 @@ class DremioDataSource(DataSource):
         self.port = data_source_properties.get("port", "32010")
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
+        self.token = data_source_properties.get("token")
         self.schema = data_source_properties.get("schema")
         self.use_encryption = data_source_properties.get("use_encryption", "false")
         self.routing_queue = data_source_properties.get("routing_queue", "")
+        self.disable_certificate_verification = data_source_properties.get("disable_certificate_verification", "false")
 
     def connect(self):
         try:
+            token_string = ""
+            if self.token:
+                token_string = f";TOKEN={self.token}"
+
             self.connection = pyodbc.connect(
                 "DRIVER={"
                 + self.driver
@@ -84,10 +90,13 @@ class DremioDataSource(DataSource):
                 + self.username
                 + ";PWD="
                 + self.password
+                + token_string
                 + ";useEncryption="
                 + self.use_encryption
                 + ";routing_queue="
-                + self.routing_queue,
+                + self.routing_queue
+                + ";disableCertificateVerification="
+                + self.disable_certificate_verification,
                 autocommit=True,
             )
         except Exception as e:

@@ -124,8 +124,8 @@ class Scan:
         global verbose
         verbose = verbose_var
 
-    def set_scan_results_file(self, set_scan_results_file: str):
-        self._scan_results_file = set_scan_results_file
+    def set_scan_results_file(self, scan_results_file: str):
+        self._scan_results_file = scan_results_file
 
     def add_configuration_yaml_file(self, file_path: str):
         """
@@ -217,26 +217,42 @@ class Scan:
                 exception=e,
             )
 
-    def add_dask_dataframe(self, dataset_name: str, dask_df) -> None:
-        context = self._get_or_create_dask_context(required_soda_module="soda-core-pandas-dask")
+    def add_dask_dataframe(self, dataset_name: str, dask_df, data_source_name: str = "dask") -> None:
+        if data_source_name == "dask":
+            self._logs.warning(
+                "Deprecated: implicit data_source_name is no longer supported. Make sure to provide a "
+                "data_source_name when invoking 'add_dask_dataframe()'."
+            )
+
+        context = self._get_or_create_dask_context(
+            required_soda_module="soda-core-pandas-dask", data_source_name=data_source_name
+        )
         context.create_table(dataset_name, dask_df)
 
-    def add_pandas_dataframe(self, dataset_name: str, pandas_df):
-        context = self._get_or_create_dask_context(required_soda_module="soda-core-pandas-dask")
+    def add_pandas_dataframe(self, dataset_name: str, pandas_df, data_source_name: str = "dask"):
+        if data_source_name == "dask":
+            self._logs.warning(
+                "Deprecated: implicit data_source_name is no longer supported. Make sure to provide a "
+                "data_source_name when invoking 'add_pandas_dataframe()'."
+            )
+
+        context = self._get_or_create_dask_context(
+            required_soda_module="soda-core-pandas-dask", data_source_name=data_source_name
+        )
         from dask.dataframe import from_pandas
 
         dask_df = from_pandas(pandas_df, npartitions=1)
         context.create_table(dataset_name, dask_df)
 
-    def _get_or_create_dask_context(self, required_soda_module: str):
+    def _get_or_create_dask_context(self, required_soda_module: str, data_source_name: str):
         try:
             from dask_sql import Context
         except ImportError:
             raise Exception(f"{required_soda_module} is not installed. Please install {required_soda_module}")
 
-        if "dask" not in self._configuration.data_source_properties_by_name:
-            self._configuration.add_dask_context(data_source_name="dask", dask_context=Context())
-        return self._configuration.data_source_properties_by_name["dask"]["context"]
+        if data_source_name not in self._configuration.data_source_properties_by_name:
+            self._configuration.add_dask_context(data_source_name=data_source_name, dask_context=Context())
+        return self._configuration.data_source_properties_by_name[data_source_name]["context"]
 
     def add_sodacl_yaml_files(
         self,
@@ -307,12 +323,12 @@ class Scan:
         except Exception as e:
             self._logs.error(f"Could not add SodaCL file {file_path}", exception=e)
 
-    def add_sodacl_yaml_str(self, sodacl_yaml_str: str):
+    def add_sodacl_yaml_str(self, sodacl_yaml_str: str, file_name: str | None = None):
         """
         Add a SodaCL YAML string to the scan.
         """
         try:
-            unique_name = "sodacl_string"
+            unique_name = file_name or "sodacl_string"
             if unique_name in self._file_paths:
                 number: int = 2
                 while f"{unique_name}_{number}" in self._file_paths:
@@ -488,6 +504,12 @@ class Scan:
                 self._logs.info(f"Refer to list of valid attributes and values at {attributes_page_url}.")
 
             if not invalid_checks:
+                # Run profiling, data samples, automated monitoring, sample tables
+                try:
+                    self.run_data_source_scan()
+                except Exception as e:
+                    self._logs.error("""An error occurred while executing data source scan""", exception=e)
+
                 # Each data_source is asked to create metric values that are returned as a list of query results
                 for data_source_scan in self._data_source_scans:
                     data_source_scan.execute_queries()
@@ -501,12 +523,6 @@ class Scan:
                         # are associated with the derived metric as well.
                         for metric_dep in metric.derived_formula.metric_dependencies.values():
                             metric.queries += metric_dep.queries
-
-                # Run profiling, data samples, automated monitoring, sample tables
-                try:
-                    self.run_data_source_scan()
-                except Exception as e:
-                    self._logs.error("""An error occurred while executing data source scan""", exception=e)
 
                 # Evaluates the checks based on all the metric values
                 for check in self._checks:
@@ -623,8 +639,15 @@ class Scan:
 
         if self._scan_results_file is not None:
             logger.info(f"Saving scan results to {self._scan_results_file}")
-            with open(self._scan_results_file, "w") as f:
-                json.dump(SodaCloud.build_scan_results(self), f)
+            try:
+                with open(self._scan_results_file, "w") as f:
+                    json.dump(
+                        SodaCloud.build_scan_results(self),
+                        f,
+                    )
+            except Exception as e:
+                exit_value = 3
+                self._logs.error("Error occurred while saving scan results to file.", exception=e)
 
         # Telemetry data
         soda_telemetry.set_attributes(

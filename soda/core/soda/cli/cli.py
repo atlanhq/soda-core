@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,6 +89,13 @@ if __name__ == "__main__":
     default=None,
     help="Specify the file path where the scan results as json will be stored",
 )
+@click.option(
+    "-T",
+    "--template-path",
+    required=False,
+    default=None,
+    help="Specify the file path for check templates",
+)
 @click.argument("sodacl_paths", nargs=-1, type=click.STRING)
 @soda_trace
 def scan(
@@ -98,6 +107,7 @@ def scan(
     variable: list[str],
     verbose: bool | None,
     scan_results_file: str | None = None,
+    template_path: str | None = None,
 ):
     """
     The soda scan command:
@@ -169,6 +179,12 @@ def scan(
             if variable_key and variable_value:
                 variables_dict[variable_key] = variable_value
         scan.add_variables(variables_dict)
+
+    if template_path:
+        scan._logs.error("Soda Core does not support check templates.")
+        scan._logs.error(
+            "Install Soda Library and sign up for a free trial to use this feature. https://go.soda.io/library"
+        )
 
     if verbose:
         scan.set_verbose()
@@ -338,7 +354,7 @@ def update_dro(
 
         if data_source_scan:
             if distribution_type == "categorical":
-                query = f"SELECT {column_name}, COUNT(*) FROM {dataset_name} {filter_clause} GROUP BY {column_name} ORDER BY 2 DESC"
+                query = f"SELECT {column_name}, {data_source_scan.data_source.expr_count_all()} FROM {dataset_name} {filter_clause} GROUP BY {column_name} ORDER BY 2 DESC"
             else:
                 query = f"SELECT {column_name} FROM {dataset_name} {filter_clause}"
             logging.info(f"Querying column values to build distribution reference:\n{query}")
@@ -375,7 +391,7 @@ def update_dro(
                 return
 
             dro = DROGenerator(RefDataCfg(distribution_type=distribution_type), column_values).generate()
-            distribution_dict["distribution_reference"] = dro.dict()
+            distribution_dict["distribution_reference"] = dro.model_dump()
             if "distribution reference" in distribution_dict:
                 # To clean up the file and don't leave the old syntax
                 distribution_dict.pop("distribution reference")
@@ -592,6 +608,61 @@ def test_connection(
         result = 1
 
     sys.exit(result)
+
+
+@main.command(
+    short_help="Simulates anomaly detection parameters",
+)
+@click.option(
+    "-c",
+    "--configuration",
+    required=True,
+    multiple=True,
+    type=click.STRING,
+)
+@soda_trace
+def simulate_anomaly_detection(configuration: list[str]) -> None:
+    configure_logging()
+    try:
+        # This file path using Pathlib
+        logging.info("Starting Soda Anomaly Detection Simulator.. It might take a few seconds to start.")
+
+        import soda.scientific.anomaly_detection_v2.simulate.app as simulator_app
+    except ImportError:
+        logging.error(
+            " soda-scientific[simulator] is not installed. "
+            "Please install the simulator sub package by running the following command: \n"
+            '   pip install "soda-scientific[simulator]" -i https://pypi.cloud.soda.io'
+        )
+        return
+    # Test whether the configuration file exists
+    fs = file_system()
+    scan = Scan()
+    for configuration_path in configuration:
+        if not fs.exists(configuration_path):
+            logging.error(
+                f"Configuration File Path Error: "
+                "Configuration path '{configuration_path}' does not exist. "
+                "Please provide a valid configuration file path. Exiting.."
+            )
+            return
+        scan.add_configuration_yaml_file(file_path=configuration_path)
+        try:
+            scan._configuration.soda_cloud.login()
+        except Exception as e:
+            logging.error(
+                "Soda Cloud Authentication Error: "
+                "Unable to login to Soda Cloud. Please provide a valid Soda Cloud credentials. "
+                f"\n{e}"
+            )
+            return
+
+    # set environment variable SODA_CONFIG_FILE_PATH to the path of your configuration file
+    os.environ["SODA_CONFIG_FILE_PATH"] = configuration[0]
+
+    streamlit_app_path = simulator_app.__file__
+
+    subprocess.run(["streamlit", "run", streamlit_app_path])
 
 
 def __execute_query(connection, sql: str) -> list[tuple]:

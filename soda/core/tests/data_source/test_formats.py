@@ -144,8 +144,8 @@ def assert_format_values(format, data_source_fixture: DataSourceFixture, table_n
 
     def set_up_expression(value: str, format: str) -> str:
         expression = data_source.get_default_format_expression(f"'{value}'", format)
-        # Special handling for sqlserver - expression matching cannot be used in the SELECT statement, so wrap it in CASE ... THEN ... ELSE for this test.
-        if test_data_source == "sqlserver":
+        # Special handling for sqlserver and teradata - expression matching cannot be used in the SELECT statement, so wrap it in CASE ... THEN ... ELSE for this test.
+        if test_data_source in ["sqlserver", "teradata"]:
             expression = f"CASE WHEN {expression} THEN 1 ELSE 0 END"
 
         return expression
@@ -165,9 +165,6 @@ def assert_format_values(format, data_source_fixture: DataSourceFixture, table_n
     expressions_sql = ",\n  ".join(expressions)
     sql = f"SELECT \n  {expressions_sql} FROM {qualified_table_name}"
     row = data_source_fixture._fetch_all(sql)[0]
-    if test_data_source == "dask":
-        # Parse string boolean values to boolean.
-        row = [value == "True" for value in row]
 
     failures_messages = []
     for index, expected_value in enumerate(expected_values):

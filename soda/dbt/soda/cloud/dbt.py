@@ -131,6 +131,7 @@ class DbtCloud:
                 "metrics": [{"identity": "dbt_metric", "metricName": "dbt_metric", "value": 0}],
                 "checks": check_dicts,
                 "logs": [log.get_cloud_dict() for log in self.scan._logs.logs],
+                "sourceOwner": "soda-core",
             }
         )
 
@@ -245,7 +246,7 @@ class DbtCloud:
         """
 
         if job_id is not None:
-            self.scan_logs.info(f"Retrieving latest run for job: {job_id}")
+            self.scan._logs.info(f"Retrieving latest run for job: {job_id}")
             run_id = self._get_latest_run_id(api_token, account_id, job_id)
 
             assert run_id, "Could not get a valid run_id for this job"
@@ -288,9 +289,7 @@ class DbtCloud:
 
         return run_id
 
-    def _parse_manifest(
-        self, manifest: dict[str, Any]
-    ) -> tuple[
+    def _parse_manifest(self, manifest: dict[str, Any]) -> tuple[
         dict[str, ParsedModelNode | CompiledModelNode] | None,
         dict[str, ParsedSeedNode | CompiledSeedNode] | None,
         dict[str, ParsedGenericTestNode | CompiledGenericTestNode] | None,
@@ -325,8 +324,9 @@ class DbtCloud:
                             node = ParsedGenericTestNode(**node)
                         test_nodes[node_name] = node
                     else:
-                        # TODO: ??????????????????? COrect indent???
-                        self.scan._logs.info(f"Ignoring unsupported {node_name}")
+                        self.scan._logs.info(f"Ignoring unsupported test node '{node_name}'. Missing 'test_metadata'.")
+                else:
+                    self.scan._logs.debug(f"Ignoring unsupported node type '{node['resource_type']}', {node_name}")
 
         else:
             model_nodes = None
@@ -376,10 +376,12 @@ class DbtCloud:
             test_unique_id: set(test_nodes[test_unique_id].depends_on["nodes"]) for test_unique_id in test_unique_ids
         }
 
-        model_unique_ids = reduce(
-            or_,
-            [model_unique_ids for model_unique_ids in models_that_tests_depends_on.values()],
-        )
+        model_unique_ids = {}
+        if models_that_tests_depends_on:
+            model_unique_ids = reduce(
+                or_,
+                [model_unique_ids for model_unique_ids in models_that_tests_depends_on.values()],
+            )
 
         models_with_tests = defaultdict(set)
         for model_unique_id in model_unique_ids:

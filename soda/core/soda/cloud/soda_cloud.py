@@ -111,6 +111,7 @@ class SodaCloud(Cloud):
                     for discover_tables_result in scan._discover_tables_result_tables
                 ],
                 "logs": [log.get_cloud_dict() for log in scan._logs.logs],
+                "sourceOwner": "soda-core",
             }
         )
 
@@ -213,6 +214,14 @@ class SodaCloud(Cloud):
 
         return []
 
+    def get_check_identities(self, check_id: str) -> dict:
+        payload = {"type": "sodaCoreCheckIdentities", "checkId": check_id}
+
+        return self._execute_query(
+            payload,
+            query_name="get_check_identity",
+        )
+
     def _get_historic_changes_over_time(self, hd: HistoricChangeOverTimeDescriptor):
         query = {
             "type": "sodaCoreHistoricMeasurements",
@@ -311,7 +320,7 @@ class SodaCloud(Cloud):
             query_name="get_hisotric_check_results",
         )
 
-    def _get_token(self):
+    def _get_token(self) -> str:
         if not self.token:
             login_command = {"type": "login"}
             if self.api_key_id and self.api_key_secret:

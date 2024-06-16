@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import struct
 from datetime import datetime, timedelta, timezone
 from textwrap import dedent
@@ -131,10 +132,9 @@ class SQLServerDataSource(DataSource):
                 + "DRIVER={"
                 + self.driver
                 + "};SERVER="
-                # + "SERVER="
                 + self.host
-                + ";PORT="
-                + self.port
+                + ","
+                + str(self.port)
                 + ";DATABASE="
                 + self.database
                 + ";UID="
@@ -177,7 +177,7 @@ class SQLServerDataSource(DataSource):
                 , sum({column_name}) as sum
                 , var({column_name}) as variance
                 , stdev({column_name}) as standard_deviation
-                , count(distinct({column_name})) as distinct_values
+                , {self.expr_count(f'distinct({column_name})')} as distinct_values
                 , sum(case when {column_name} is null then 1 else 0 end) as missing_values
             FROM {qualified_table_name}
             """
@@ -260,7 +260,7 @@ class SQLServerDataSource(DataSource):
         return dedent(
             f"""
             SELECT
-                count(distinct({column_name})) as distinct_values
+                {self.expr_count(f'distinct({column_name})')} as distinct_values
                 , sum(case when {column_name} is null then 1 else 0 end) as missing_values
                 , avg(len({column_name})) as avg_length
                 , min(len({column_name})) as min_length
@@ -270,7 +270,7 @@ class SQLServerDataSource(DataSource):
         )
 
     def expr_regexp_like(self, expr: str, regex_pattern: str):
-        return f"PATINDEX ('%{regex_pattern}%', {expr}) > 0"
+        return f"PATINDEX ('{regex_pattern}', {expr}) > 0"
 
     def sql_select_all(self, table_name: str, limit: int | None = None, filter: str | None = None) -> str:
         qualified_table_name = self.qualified_table_name(table_name)
@@ -311,6 +311,30 @@ class SQLServerDataSource(DataSource):
         )
         return sql
 
+    def sql_groupby_count_categorical_column(
+        self,
+        select_query: str,
+        column_name: str,
+        limit: int | None = None,
+    ) -> str:
+        cte = select_query.replace("\n", " ")
+        # delete multiple spaces
+        cte = re.sub(" +", " ", cte)
+        top_limit = f"TOP {limit}" if limit else ""
+        sql = dedent(
+            f"""
+                WITH processed_table AS (
+                    {cte}
+                )
+                SELECT {top_limit}
+                    {column_name}
+                    , {self.expr_count_all()} AS frequency
+                FROM processed_table
+                GROUP BY {column_name}
+            """
+        )
+        return dedent(sql)
+
     def expr_false_condition(self):
         return "1 = 0"
 
@@ -323,6 +347,7 @@ class SQLServerDataSource(DataSource):
         invert_condition: bool = False,
         exclude_patterns: list[str] | None = None,
     ) -> str | None:
+        qualified_table_name = self.qualified_table_name(table_name)
         limit_sql = ""
         main_query_columns = f"{column_names}, frequency" if exclude_patterns else "*"
 
@@ -332,8 +357,8 @@ class SQLServerDataSource(DataSource):
         sql = dedent(
             f"""
             WITH frequencies AS (
-                SELECT {column_names}, COUNT(*) AS frequency
-                FROM {table_name}
+                SELECT {column_names}, {self.expr_count_all()} AS frequency
+                FROM {qualified_table_name}
                 WHERE {filter}
                 GROUP BY {column_names})
             SELECT {limit_sql} {main_query_columns}
@@ -351,12 +376,12 @@ class SQLServerDataSource(DataSource):
         filter: str,
         limit: str | None = None,
         invert_condition: bool = False,
-        exclude_patterns: list[str] | None = None,
     ) -> str | None:
+        qualified_table_name = self.qualified_table_name(table_name)
         columns = column_names.split(", ")
 
-        qualified_main_query_columns = ", ".join([f"main.{c}" for c in columns])
-        main_query_columns = qualified_main_query_columns if exclude_patterns else "main.*"
+        main_query_columns = self.sql_select_all_column_names(table_name)
+        qualified_main_query_columns = ", ".join([f"main.{c}" for c in main_query_columns])
         join = " AND ".join([f"main.{c} = frequencies.{c}" for c in columns])
 
         limit_sql = ""
@@ -367,12 +392,12 @@ class SQLServerDataSource(DataSource):
             f"""
             WITH frequencies AS (
                 SELECT {column_names}
-                FROM {table_name}
+                FROM {qualified_table_name}
                 WHERE {filter}
                 GROUP BY {column_names}
-                HAVING count(*) {'<=' if invert_condition else '>'} 1)
-            SELECT {limit_sql} {main_query_columns}
-            FROM {table_name} main
+                HAVING {self.expr_count_all()} {'<=' if invert_condition else '>'} 1)
+            SELECT {limit_sql} {qualified_main_query_columns}
+            FROM {qualified_table_name} main
             JOIN frequencies ON {join}
             """
         )
@@ -401,3 +426,40 @@ class SQLServerDataSource(DataSource):
         )
 
         return sql
+
+    def quote_table(self, table_name: str) -> str:
+        return f"[{table_name}]"
+
+    def quote_column(self, column_name: str) -> str:
+        return f"[{column_name}]"
+
+    def is_quoted(self, table_name: str) -> bool:
+        return (
+            (table_name.startswith('"') and table_name.endswith('"'))
+            or (table_name.startswith("'") and table_name.endswith("'"))
+            or (table_name.startswith("[") and table_name.endswith("]"))
+        )
+
+    def sql_information_schema_tables(self) -> str:
+        return "INFORMATION_SCHEMA.TABLES"
+
+    def sql_information_schema_columns(self) -> str:
+        return "INFORMATION_SCHEMA.COLUMNS"
+
+    def default_casify_sql_function(self) -> str:
+        """Returns the sql function to use for default casify."""
+        return ""
+
+    def default_casify_system_name(self, identifier: str) -> str:
+        return identifier
+
+    def qualified_table_name(self, table_name: str) -> str:
+        """
+        table_name can be quoted or unquoted
+        """
+        if self.quote_tables and not self.is_quoted(table_name):
+            table_name = self.quote_table(table_name)
+
+        if self.table_prefix:
+            return f"{self.table_prefix}.{table_name}"
+        return table_name

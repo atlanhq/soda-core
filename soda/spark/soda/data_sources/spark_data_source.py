@@ -25,6 +25,8 @@ def hive_connection_function(
     port: str,
     database: str,
     auth_method: str,
+    kerberos_service_name: str,
+    scheme: str | None,
     **kwargs,
 ):
     """
@@ -44,6 +46,8 @@ def hive_connection_function(
         The databse
     auth_method : str
         The authentication method
+    kerberos_service_name: str
+        The Kerberos service name
 
     Returns
     -------
@@ -59,6 +63,9 @@ def hive_connection_function(
         port=port,
         database=database,
         auth=auth_method,
+        configuration=kwargs.get("configuration", {}),
+        kerberos_service_name=kerberos_service_name,
+        scheme=scheme,
     )
     return connection
 
@@ -105,7 +112,7 @@ def odbc_connection_function(
     import pyodbc
 
     http_path = f"/sql/protocolv1/o/{organization}/{cluster}"
-    user_agent_entry = f"soda-sql-spark/{SODA_CORE_VERSION} (Databricks)"
+    user_agent_entry = f"soda-core-spark/{SODA_CORE_VERSION} (Databricks)"
 
     connection_str = _build_odbc_connnection_string(
         DRIVER=driver,
@@ -129,6 +136,7 @@ def odbc_connection_function(
 def databricks_connection_function(host: str, http_path: str, token: str, database: str, schema: str, **kwargs):
     from databricks import sql
 
+    user_agent_entry = f"soda-core-spark/{SODA_CORE_VERSION} (Databricks)"
     logging.getLogger("databricks.sql").setLevel(logging.INFO)
     connection = sql.connect(
         server_hostname=host,
@@ -136,6 +144,7 @@ def databricks_connection_function(host: str, http_path: str, token: str, databa
         schema=schema,
         http_path=http_path,
         access_token=token,
+        _user_agent_entry=user_agent_entry,
     )
     return connection
 
@@ -219,7 +228,7 @@ class SparkSQLBase(DataSource):
         included_columns: list[str] | None = None,
         excluded_columns: list[str] | None = None,
     ):
-        return f"DESCRIBE TABLE {table_name}"
+        return f"DESCRIBE {table_name}"
 
     def sql_get_column(self, include_tables: list[str] | None = None, exclude_tables: list[str] | None = None) -> str:
         table_filter_expression = self.sql_table_include_exclude_filter(
@@ -337,7 +346,7 @@ class SparkSQLBase(DataSource):
             query = Query(
                 data_source_scan=self.data_source_scan,
                 unqualified_query_name=f"get-tables-columns-metadata-describe-table-{table_name}-spark",
-                sql=f"DESCRIBE TABLE {table_name}",
+                sql=f"DESCRIBE {table_name}",
             )
             query.execute()
             columns_metadata = query.rows
@@ -434,9 +443,15 @@ class SparkDataSource(SparkSQLBase):
         self.port = data_source_properties.get("port", "10000")
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
-        self.database = data_source_properties.get("catalog", "default")
+        # 20231114: fallback on database, which has been in the docs for a while
+        self.database = data_source_properties.get("catalog", getattr(self, "database", "default"))
         self.schema = data_source_properties.get("schema", "default")
+
+        # Support both auth_method and authentication for backwards compatibility
         self.auth_method = data_source_properties.get("authentication", None)
+        self.auth_method = data_source_properties.get("auth_method", self.auth_method)
+
+        self.kerberos_service_name = data_source_properties.get("kerberos_service_name", None)
         self.configuration = data_source_properties.get("configuration", {})
         self.driver = data_source_properties.get("driver", None)
         self.organization = data_source_properties.get("organization", None)
@@ -444,6 +459,7 @@ class SparkDataSource(SparkSQLBase):
         self.server_side_parameters = {
             f"SSP_{k}": f"{{{v}}}" for k, v in data_source_properties.get("server_side_parameters", {})
         }
+        self.scheme = data_source_properties.get("scheme", "http")
 
     def connect(self):
         if self.method == SparkConnectionMethod.HIVE:
@@ -463,6 +479,7 @@ class SparkDataSource(SparkSQLBase):
                 port=self.port,
                 database=self.database,
                 auth_method=self.auth_method,
+                kerberos_service_name=self.kerberos_service_name,
                 driver=self.driver,
                 token=self.token,
                 schema=self.schema,
@@ -470,11 +487,17 @@ class SparkDataSource(SparkSQLBase):
                 organization=self.organization,
                 cluster=self.cluster,
                 server_side_parameters=self.server_side_parameters,
+                configuration=self.configuration,
+                scheme=self.scheme,
             )
 
             self.connection = connection
         except Exception as e:
             raise DataSourceConnectionError(self.type, e)
 
+    # TODO: this will probably require per-subtype class, this is is a temporary hack.
     def cast_to_text(self, expr: str) -> str:
-        return f"CAST({expr} AS VARCHAR(100))"
+        if self.method == SparkConnectionMethod.DATABRICKS:
+            return f"CAST({expr} AS STRING)"
+
+        return super().cast_to_text(expr)

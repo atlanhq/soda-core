@@ -71,6 +71,10 @@ def test_freshness_timezones_no_input(data_source_fixture: DataSourceFixture):
     scan.assert_all_checks_pass()
 
 
+@pytest.mark.skipif(
+    test_data_source == "teradata",
+    reason="TODO: Need to check why teradatasql make implicit cast to unexpected timezone format",
+)
 def test_fail_freshness_timezones_input_user_var(data_source_fixture: DataSourceFixture):
     table_name = data_source_fixture.ensure_test_table(customers_test_table)
 
@@ -127,7 +131,9 @@ def test_freshness_with_table_filter(data_source_fixture: DataSourceFixture):
             where: {where_cond}
 
           checks for {table_name} [daily]:
-            - freshness(ts, END_TIME) < 24h
+            - freshness(ts, END_TIME):
+                fail: when > 24h
+                warn: when < 23h
         """
     )
     scan.execute()
@@ -137,8 +143,8 @@ def test_freshness_with_table_filter(data_source_fixture: DataSourceFixture):
 
 def test_freshness_no_rows(data_source_fixture: DataSourceFixture):
     table_name = data_source_fixture.ensure_test_table(customers_test_table)
-
-    cond = "1 = 0" if test_data_source == "sqlserver" else "FALSE"
+    # There is no boolean type and variables in Teradata
+    cond = "1 = 0" if test_data_source in ["sqlserver", "teradata"] else "FALSE"
     scan = data_source_fixture.create_test_scan()
     scan.add_variables(
         {
@@ -152,7 +158,65 @@ def test_freshness_no_rows(data_source_fixture: DataSourceFixture):
             where: '{cond}'
 
           checks for {table_name} [empty]:
-            - freshness(ts, END_TIME) < 24h
+            - freshness(ts, END_TIME):
+                fail: when > 24h
+                warn: when < 23h
+        """
+    )
+    scan.execute()
+
+    scan.assert_all_checks_fail()
+
+
+def test_freshness_with_check_filter(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+    where_cond = (
+        f"""CONVERT(DATETIME,'${{START_TIME}}') <= ts AND ts < CONVERT(DATETIME,'${{END_TIME}}')"""
+        if test_data_source == "sqlserver"
+        else f"""TIMESTAMP '${{START_TIME}}' <= ts AND ts < TIMESTAMP '${{END_TIME}}'"""
+    )
+
+    scan = data_source_fixture.create_test_scan()
+    scan.add_variables(
+        {
+            "START_TIME": "2020-06-23 00:00:00",
+            "END_TIME": "2020-06-24 00:00:00",
+        }
+    )
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - freshness(ts, END_TIME):
+                fail: when > 24h
+                warn: when < 23h
+                filter: {where_cond}
+        """
+    )
+    scan.execute()
+
+    scan.assert_all_checks_pass()
+
+
+@pytest.mark.skipif(
+    test_data_source == "dask",
+    reason="Dask does not support a max() function for Null results.",
+)
+def test_freshness_check_filter_no_rows(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+    # There is no boolean type and variables in Teradata
+    cond = "1 = 0" if test_data_source in ["sqlserver", "teradata"] else "FALSE"
+    scan = data_source_fixture.create_test_scan()
+    scan.add_variables(
+        {
+            "START_TIME": "2020-06-23 00:00:00",
+            "END_TIME": "2020-06-24 00:00:00",
+        }
+    )
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - freshness(ts, END_TIME) < 24h:
+                filter: '{cond}'
         """
     )
     scan.execute()
@@ -186,6 +250,38 @@ def test_freshness_with_date(data_source_fixture: DataSourceFixture):
         f"""
           checks for {table_name}:
             - freshness(date_updated) < 1d
+        """
+    )
+    scan.execute()
+
+    scan.assert_all_checks_pass()
+
+
+def test_freshness_mixed_threshold_dh(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.add_variables({"NOW": "2020-06-24 01:00:00"})
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - freshness(ts) < 1d1h
+        """
+    )
+    scan.execute()
+
+    scan.assert_all_checks_pass()
+
+
+def test_freshness_mixed_threshold_hm(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.add_variables({"NOW": "2020-06-24 01:00:00"})
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - freshness(ts) < 24h10m
         """
     )
     scan.execute()

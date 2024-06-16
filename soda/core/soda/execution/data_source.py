@@ -16,6 +16,7 @@ from soda.common.logs import Logs
 from soda.common.string_helper import string_matches_simple_pattern
 from soda.execution.data_type import DataType
 from soda.execution.query.query import Query
+from soda.execution.query.query_without_results import QueryWithoutResults
 from soda.execution.query.schema_query import TableColumnsQuery
 from soda.sampler.sample_ref import SampleRef
 from soda.sodacl.location import Location
@@ -115,7 +116,7 @@ class DataSource:
     # Keys represent the data_source type, values are lists of "aliases" that can be used in SodaCL as synonyms.
     SCHEMA_CHECK_TYPES_MAPPING: dict = {
         "character varying": ["varchar", "text"],
-        "double precision": ["decimal"],
+        "double precision": ["decimal", "numeric"],
         "timestamp without time zone": ["timestamp"],
         "timestamp with time zone": ["timestamptz"],
     }
@@ -229,6 +230,10 @@ class DataSource:
         self.table_prefix: str | None = self._create_table_prefix()
         # self.data_source_scan is initialized in create_data_source_scan(...) below
         self.data_source_scan: DataSourceScan | None = None
+        # Temporarily introduced to migrate some "wrongly implemented" data sources.
+        # See https://sodadata.atlassian.net/browse/CLOUD-5446
+        self.migrate_data_source_name = None
+        self.quote_tables: bool = data_source_properties.get("quote_tables", False)
 
     def has_valid_connection(self) -> bool:
         query = Query(
@@ -286,6 +291,12 @@ class DataSource:
         if (
             actual_type in self.SCHEMA_CHECK_TYPES_MAPPING
             and expected_type in self.SCHEMA_CHECK_TYPES_MAPPING[actual_type]
+        ):
+            return True
+
+        if (
+            expected_type in self.SCHEMA_CHECK_TYPES_MAPPING
+            and actual_type in self.SCHEMA_CHECK_TYPES_MAPPING[expected_type]
         ):
             return True
 
@@ -549,7 +560,7 @@ class DataSource:
         query_name: str,
         included_columns: list[str] | None = None,
         excluded_columns: list[str] | None = None,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, str]:
         """
         :return: A dict mapping column names to data source data types.  Like eg
         {"id": "varchar", "cst_size": "int8", ...}
@@ -564,7 +575,7 @@ class DataSource:
         query.execute()
         if query.rows and len(query.rows) > 0:
             return {row[0]: row[1] for row in query.rows}
-        return None
+        return {}
 
     def create_table_columns_query(self, partition: Partition, schema_metric: SchemaMetric) -> TableColumnsQuery:
         return TableColumnsQuery(partition, schema_metric)
@@ -710,14 +721,16 @@ class DataSource:
         table_name: str,
         filter: str,
     ) -> str | None:
+        qualified_table_name = self.qualified_table_name(table_name)
+
         sql = dedent(
             f"""
             WITH frequencies AS (
-                SELECT COUNT(*) AS frequency
-                FROM {table_name}
+                SELECT {self.expr_count_all()} AS frequency
+                FROM {qualified_table_name}
                 WHERE {filter}
                 GROUP BY {column_names})
-            SELECT count(*)
+            SELECT {self.expr_count_all()}
             FROM frequencies
             WHERE frequency > 1"""
         )
@@ -733,12 +746,14 @@ class DataSource:
         invert_condition: bool = False,
         exclude_patterns: list[str] | None = None,
     ) -> str | None:
+        qualified_table_name = self.qualified_table_name(table_name)
         main_query_columns = f"{column_names}, frequency" if exclude_patterns else "*"
+
         sql = dedent(
             f"""
             WITH frequencies AS (
-                SELECT {column_names}, COUNT(*) AS frequency
-                FROM {table_name}
+                SELECT {column_names}, {self.expr_count_all()} AS frequency
+                FROM {qualified_table_name}
                 WHERE {filter}
                 GROUP BY {column_names})
             SELECT {main_query_columns}
@@ -759,24 +774,24 @@ class DataSource:
         filter: str,
         limit: str | None = None,
         invert_condition: bool = False,
-        exclude_patterns: list[str] | None = None,
     ) -> str | None:
+        qualified_table_name = self.qualified_table_name(table_name)
         columns = column_names.split(", ")
 
-        qualified_main_query_columns = ", ".join([f"main.{c}" for c in columns])
-        main_query_columns = qualified_main_query_columns if exclude_patterns else "main.*"
+        main_query_columns = self.sql_select_all_column_names(table_name)
+        qualified_main_query_columns = ", ".join([f"main.{c}" for c in main_query_columns])
         join = " AND ".join([f"main.{c} = frequencies.{c}" for c in columns])
 
         sql = dedent(
             f"""
             WITH frequencies AS (
                 SELECT {column_names}
-                FROM {table_name}
+                FROM {qualified_table_name}
                 WHERE {filter}
                 GROUP BY {column_names}
-                HAVING count(*) {'<=' if invert_condition else '>'} 1)
-            SELECT {main_query_columns}
-            FROM {table_name} main
+                HAVING {self.expr_count_all()} {'<=' if invert_condition else '>'} 1)
+            SELECT {qualified_main_query_columns}
+            FROM {qualified_table_name} main
             JOIN frequencies ON {join}
             """
         )
@@ -890,7 +905,7 @@ class DataSource:
         quoted_column_name = self.quote_column(column_name)
         qualified_table_name = self.qualified_table_name(table_name)
         return f"""value_frequencies AS (
-                            SELECT {quoted_column_name} AS value_, count(*) AS frequency_
+                            SELECT {quoted_column_name} AS value_, {self.expr_count_all()} AS frequency_
                             FROM {qualified_table_name}
                             WHERE {quoted_column_name} IS NOT NULL
                             GROUP BY {quoted_column_name}
@@ -906,7 +921,7 @@ class DataSource:
                 , sum({column_name}) as sum
                 , var_samp({column_name}) as variance
                 , stddev_samp({column_name}) as standard_deviation
-                , count(distinct({column_name})) as distinct_values
+                , {self.expr_count(f'distinct({column_name})')} as distinct_values
                 , sum(case when {column_name} is null then 1 else 0 end) as missing_values
             FROM {qualified_table_name}
             """
@@ -918,7 +933,7 @@ class DataSource:
         return dedent(
             f"""
             SELECT
-                count(distinct({column_name})) as distinct_values
+                {self.expr_count(f'distinct({column_name})')} as distinct_values
                 , sum(case when {column_name} is null then 1 else 0 end) as missing_values
                 , avg(length({column_name})) as avg_length
                 , min(length({column_name})) as min_length
@@ -1052,12 +1067,13 @@ class DataSource:
     def _optionally_quote_table_name_from_meta_data(self, table_name: str) -> str:
         """
         To be used by all table names coming from metadata queries.  Quotes are added if needed if the table
-        doesn't match the default casify rules.  The table_name is returned unquoted if it matches the default
-        casify rules.
+        doesn't match the default casify rules or if whitespaces are present.
+        The table_name is returned unquoted otherwise.
         """
         # if the table name needs quoting
         if table_name != self.default_casify_table_name(table_name):
-            # add the quotes
+            return self.quote_table(table_name)
+        elif self.quote_tables:
             return self.quote_table(table_name)
         else:
             # return the bare table name
@@ -1065,7 +1081,7 @@ class DataSource:
 
     def analyze_table(self, table: str):
         if self.sql_analyze_table(table):
-            Query(
+            QueryWithoutResults(
                 data_source_scan=self.data_source_scan,
                 unqualified_query_name=f"analyze_{table}",
                 sql=self.sql_analyze_table(table),
@@ -1173,10 +1189,10 @@ class DataSource:
         return "TRUE" if boolean is True else "FALSE"
 
     def expr_count_all(self) -> str:
-        return "COUNT(*)"
+        return self.expr_count("*")
 
     def expr_count_conditional(self, condition: str):
-        return f"COUNT(CASE WHEN {condition} THEN 1 END)"
+        return self.expr_count(self.expr_conditional(condition, "1"))
 
     def expr_conditional(self, condition: str, expr: str):
         return f"CASE WHEN {condition} THEN {expr} END"
@@ -1358,6 +1374,30 @@ class DataSource:
 
         finally:
             cursor.close()
+
+    def sql_groupby_count_categorical_column(
+        self,
+        select_query: str,
+        column_name: str,
+        limit: int | None = None,
+    ) -> str:
+        cte = select_query.replace("\n", " ")
+        # delete multiple spaces
+        cte = re.sub(" +", " ", cte)
+        sql = dedent(
+            f"""
+                WITH processed_table AS (
+                    {cte}
+                )
+                SELECT
+                    {column_name}
+                    , {self.expr_count_all()} AS frequency
+                FROM processed_table
+                GROUP BY {column_name}
+            """
+        )
+        sql += f"LIMIT {limit}" if limit else ""
+        return dedent(sql)
 
     def sql_select_column_with_filter_and_limit(
         self,

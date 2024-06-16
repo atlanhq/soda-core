@@ -15,6 +15,8 @@ class SchemaValidations:
     is_column_deletion_forbidden: bool
     is_column_type_change_forbidden: bool
     is_column_index_change_forbidden: bool
+    other_columns_allowed: bool = True
+    optional_columns: Optional[List[str]] = None
 
     def has_change_validations(self):
         return (
@@ -23,6 +25,9 @@ class SchemaValidations:
             or self.is_column_type_change_forbidden
             or self.is_column_index_change_forbidden
         )
+
+    def is_optional(self, column_name: str) -> bool:
+        return not (self.optional_columns is None or column_name not in self.optional_columns)
 
 
 class SchemaCheckCfg(CheckCfg):

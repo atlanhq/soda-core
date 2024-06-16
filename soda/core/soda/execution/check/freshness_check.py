@@ -32,13 +32,14 @@ class FreshnessCheck(Check):
                 column=self.column,
                 metric_name="max",
                 metric_args=None,
-                filter=None,
+                filter=self.check_cfg.filter,
                 aggregation=None,
                 check_missing_and_valid_cfg=None,
                 column_configurations_cfg=None,
                 check=self,
             )
         )
+        self.freshness_values = {}
 
     def evaluate(self, metrics: dict[str, Metric], historic_values: dict[str, object]):
         from soda.sodacl.freshness_check_cfg import FreshnessCheckCfg
@@ -117,18 +118,19 @@ class FreshnessCheck(Check):
     def get_cloud_diagnostics_dict(self):
         cloud_diagnostics = super().get_cloud_diagnostics_dict()
 
-        freshness = 0
-        if self.freshness_values["freshness"] and isinstance(self.freshness_values["freshness"], timedelta):
-            freshness = round(self.freshness_values["freshness"].total_seconds() * 1000)
+        if self.freshness_values:
+            freshness = 0
+            if self.freshness_values["freshness"] and isinstance(self.freshness_values["freshness"], timedelta):
+                freshness = round(self.freshness_values["freshness"].total_seconds() * 1000)
 
-        cloud_diagnostics["value"] = freshness  # milliseconds difference
-        cloud_diagnostics["measure"] = "time"
-        cloud_diagnostics["maxColumnTimestamp"] = self.freshness_values["max_column_timestamp"]
-        cloud_diagnostics["maxColumnTimestampUtc"] = self.freshness_values["max_column_timestamp_utc"]
-        cloud_diagnostics["nowVariableName"] = self.freshness_values["now_variable_name"]
-        cloud_diagnostics["nowTimestamp"] = self.freshness_values["now_timestamp"]
-        cloud_diagnostics["nowTimestampUtc"] = self.freshness_values["now_timestamp_utc"]
-        cloud_diagnostics["freshness"] = self.freshness_values["freshness"]
+            cloud_diagnostics["value"] = freshness  # milliseconds difference
+            cloud_diagnostics["measure"] = "time"
+            cloud_diagnostics["maxColumnTimestamp"] = self.freshness_values["max_column_timestamp"]
+            cloud_diagnostics["maxColumnTimestampUtc"] = self.freshness_values["max_column_timestamp_utc"]
+            cloud_diagnostics["nowVariableName"] = self.freshness_values["now_variable_name"]
+            cloud_diagnostics["nowTimestamp"] = self.freshness_values["now_timestamp"]
+            cloud_diagnostics["nowTimestampUtc"] = self.freshness_values["now_timestamp_utc"]
+            cloud_diagnostics["freshness"] = self.freshness_values["freshness"]
 
         return cloud_diagnostics
 

@@ -1,4 +1,4 @@
-# Generated from /Users/vijay/work/soda/code/soda-core/soda/core/soda/sodacl/antlr/SodaCLAntlr.g4 by ANTLR 4.11.1
+# Generated from /Users/baturayofluoglu/workspace/soda-core/soda/core/soda/sodacl/antlr/SodaCLAntlr.g4 by ANTLR 4.11.1
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .SodaCLAntlrParser import SodaCLAntlrParser
@@ -143,6 +143,15 @@ class SodaCLAntlrListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SodaCLAntlrParser#anomaly_detection.
+    def enterAnomaly_detection(self, ctx:SodaCLAntlrParser.Anomaly_detectionContext):
+        pass
+
+    # Exit a parse tree produced by SodaCLAntlrParser#anomaly_detection.
+    def exitAnomaly_detection(self, ctx:SodaCLAntlrParser.Anomaly_detectionContext):
+        pass
+
+
     # Enter a parse tree produced by SodaCLAntlrParser#metric.
     def enterMetric(self, ctx:SodaCLAntlrParser.MetricContext):
         pass
@@ -266,6 +275,15 @@ class SodaCLAntlrListener(ParseTreeListener):
 
     # Exit a parse tree produced by SodaCLAntlrParser#reference_check.
     def exitReference_check(self, ctx:SodaCLAntlrParser.Reference_checkContext):
+        pass
+
+
+    # Enter a parse tree produced by SodaCLAntlrParser#reference_must_exist.
+    def enterReference_must_exist(self, ctx:SodaCLAntlrParser.Reference_must_existContext):
+        pass
+
+    # Exit a parse tree produced by SodaCLAntlrParser#reference_must_exist.
+    def exitReference_must_exist(self, ctx:SodaCLAntlrParser.Reference_must_existContext):
         pass
 
 

@@ -44,9 +44,23 @@ class UserDefinedFailedRowsExpressionCheck(Check):
     def evaluate(self, metrics: Dict[str, Metric], historic_values: Dict[str, object]):
         self.check_value: int = metrics.get(KEY_FAILED_ROWS_COUNT).value
 
-        self.outcome = CheckOutcome.PASS
+        # Thresholds path
+        if self.check_cfg.fail_threshold_cfg or self.check_cfg.warn_threshold_cfg:
+            if self.check_cfg.fail_threshold_cfg and self.check_cfg.fail_threshold_cfg.is_bad(self.check_value):
+                self.outcome = CheckOutcome.FAIL
+            elif self.check_cfg.warn_threshold_cfg and self.check_cfg.warn_threshold_cfg.is_bad(self.check_value):
+                self.outcome = CheckOutcome.WARN
+            else:
+                self.outcome = CheckOutcome.PASS
+        else:
+            # Original non-threshold path
+            if self.check_value > 0:
+                self.outcome = CheckOutcome.FAIL
+            else:
+                self.outcome = CheckOutcome.PASS
+
         if self.check_value > 0:
-            self.outcome = CheckOutcome.FAIL
+            # Collect failed rows
             failed_rows_sql = self.get_failed_rows_sql()
             failed_rows_query = UserDefinedFailedRowsExpressionQuery(
                 data_source_scan=self.data_source_scan,
@@ -54,9 +68,10 @@ class UserDefinedFailedRowsExpressionCheck(Check):
                 sql=failed_rows_sql,
                 samples_limit=self.check_cfg.samples_limit,
                 partition=self.partition,
+                metric=self.metrics[KEY_FAILED_ROWS_COUNT],
             )
             failed_rows_query.execute()
-            if failed_rows_query.sample_ref and failed_rows_query.sample_ref.is_persisted():
+            if failed_rows_query.sample_ref:
                 self.failed_rows_sample_ref = failed_rows_query.sample_ref
 
     def get_failed_rows_sql(self) -> str:

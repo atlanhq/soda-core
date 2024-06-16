@@ -28,12 +28,12 @@ class DataSourceFixture:
     __test__ = False
 
     @staticmethod
-    def _create() -> DataSourceFixture:
+    def _create(test_data_source_name: str = None) -> DataSourceFixture:
         test_data_source = os.getenv("test_data_source", "postgres")
         module = import_module(f"{test_data_source}_data_source_fixture")
         data_source_fixture_class = f"{DataSource.camel_case_data_source_type(test_data_source)}DataSourceFixture"
         class_ = getattr(module, data_source_fixture_class)
-        return class_(test_data_source)
+        return class_(test_data_source_name or test_data_source)
 
     def __init__(self, test_data_source: str):
         self.data_source_name = test_data_source
@@ -137,7 +137,9 @@ class DataSourceFixture:
             self.data_source.commit()
 
             # Run table analyze so that internal data source statistics are refreshed before running any tests.
-            self.data_source.analyze_table(test_table.unique_table_name)
+            table_name = test_table.unique_table_name
+            if test_table.quote_names:
+                table_name = self.data_source.quote_table_declaration(table_name)
         return test_table.unique_view_name if test_table.create_view else test_table.unique_table_name
 
     def _get_existing_test_table_names(self):
@@ -210,7 +212,8 @@ class DataSourceFixture:
 
     def _test_session_ends(self):
         self.data_source.connection.close()
-        self._drop_schema_if_exists()
+        if not is_cicd():
+            self._drop_schema_if_exists()
         self.schema_data_source.connection.close()
 
     def _drop_schema_if_exists(self):
@@ -253,3 +256,7 @@ class DataSourceFixture:
             return updates
         finally:
             cursor.close()
+
+
+def is_cicd():
+    return os.getenv("GITHUB_ACTIONS") is not None

@@ -190,3 +190,139 @@ def test_bad_failed_rows_query(data_source_fixture: DataSourceFixture):
     logs = scan_result.get("logs")
     first_error_log = next(log for log in logs if log["level"] == "error")
     assert "location" in first_error_log
+
+
+def test_failed_rows_query_warn_threshold(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    qualified_table_name = data_source_fixture.data_source.qualified_table_name(table_name)
+
+    scan = data_source_fixture.create_test_scan()
+    mock_soda_cloud = scan.enable_mock_soda_cloud()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks:
+            - failed rows:
+                name: Customers must have cst_size
+                fail query: |
+                  SELECT *
+                  FROM {qualified_table_name}
+                  WHERE cst_size < 0
+                warn: when = 3
+                fail: when > 5
+        """
+    )
+    scan.execute()
+    scan.assert_check_warn()
+
+    assert mock_soda_cloud.find_failed_rows_line_count(0) == 3
+
+
+def test_failed_rows_query_fail_threshold(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    qualified_table_name = data_source_fixture.data_source.qualified_table_name(table_name)
+
+    scan = data_source_fixture.create_test_scan()
+    mock_soda_cloud = scan.enable_mock_soda_cloud()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks:
+            - failed rows:
+                name: Customers must have cst_size
+                fail query: |
+                  SELECT *
+                  FROM {qualified_table_name}
+                  WHERE cst_size < 0
+                warn: when = 3
+                fail: when > 2
+        """
+    )
+    scan.execute()
+    scan.assert_check_fail()
+
+    assert mock_soda_cloud.find_failed_rows_line_count(0) == 3
+
+
+def test_failed_rows_query_fail_threshold_pass(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    qualified_table_name = data_source_fixture.data_source.qualified_table_name(table_name)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks:
+            - failed rows:
+                name: Customers must have cst_size
+                fail query: |
+                  SELECT *
+                  FROM {qualified_table_name}
+                  WHERE cst_size < 0
+                fail: when > 3
+        """
+    )
+    scan.execute()
+    scan.assert_check_pass()
+
+
+def test_failed_rows_query_warn_threshold_pass(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    qualified_table_name = data_source_fixture.data_source.qualified_table_name(table_name)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks:
+            - failed rows:
+                name: Customers must have cst_size
+                fail query: |
+                  SELECT *
+                  FROM {qualified_table_name}
+                  WHERE cst_size < 0
+                warn: when > 3
+        """
+    )
+    scan.execute()
+    scan.assert_check_pass()
+
+
+def test_failed_rows_condition_fail_threshold_pass(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - failed rows:
+                name: Customers must have cst_size
+                fail condition: cst_size < 0
+                fail: when > 3
+        """
+    )
+    scan.execute()
+    scan.assert_check_pass()
+
+
+def test_failed_rows_condition_warn_threshold_pass(data_source_fixture: DataSourceFixture):
+    table_name = data_source_fixture.ensure_test_table(customers_test_table)
+
+    scan = data_source_fixture.create_test_scan()
+    scan.enable_mock_sampler()
+    scan.add_sodacl_yaml_str(
+        f"""
+          checks for {table_name}:
+            - failed rows:
+                name: Customers must have cst_size
+                fail condition: cst_size < 0
+                warn: when > 3
+        """
+    )
+    scan.execute()
+    scan.assert_check_pass()
