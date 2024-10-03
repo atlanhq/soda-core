@@ -55,7 +55,7 @@ class RedshiftDataSource(DataSource):
 
         client = boto3.client(
             "redshift",
-            # region_name=resolved_aws_credentials.region_name,
+            region_name=resolved_aws_credentials.region_name,
             aws_access_key_id=resolved_aws_credentials.access_key_id,
             aws_secret_access_key=resolved_aws_credentials.secret_access_key,
             aws_session_token=resolved_aws_credentials.session_token,
