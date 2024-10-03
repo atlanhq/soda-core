@@ -33,6 +33,8 @@ class RedshiftDataSource(DataSource):
                 profile_name=data_source_properties.get("profile_name"),
                 external_id=data_source_properties.get("external_id") 
             )
+            print(f"External ID: {aws_credentials.external_id}")
+            print(f"Role ARN: {aws_credentials.role_arn}")
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
     def connect(self):
