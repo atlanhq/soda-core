@@ -58,7 +58,14 @@ class AwsCredentials:
             aws_session_token=self.session_token,
         )
 
-        assumed_role_object = self.sts_client.assume_role(RoleArn=self.role_arn, RoleSessionName=role_session_name)
+        assume_role_kwargs = {
+            "RoleArn": self.role_arn,
+            "RoleSessionName": role_session_name,
+        }
+        if self.external_id:
+            assume_role_kwargs["ExternalId"] = self.external_id
+
+        assumed_role_object = self.sts_client.assume_role(**assume_role_kwargs)
         credentials_dict = assumed_role_object["Credentials"]
         return AwsCredentials(
             region_name=self.region_name,
