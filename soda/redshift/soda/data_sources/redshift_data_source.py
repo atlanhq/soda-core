@@ -33,6 +33,9 @@ class RedshiftDataSource(DataSource):
                 profile_name=data_source_properties.get("profile_name"),
                 external_id=data_source_properties.get("external_id")
             )
+            logger.info("AWS credentials provided for role assumption.")
+            logger.info("Role ARN: %s", aws_credentials.role_arn)
+            logger.info("External ID: %s", aws_credentials.external_id)
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
     def connect(self):
@@ -62,12 +65,13 @@ class RedshiftDataSource(DataSource):
         )
 
         cluster_name = self.host.split(".")[0]
-        username = self.username
-        db_name = self.database
+        logger.info("Getting cluster credentials for cluster: %s", cluster_name)
+
         cluster_creds = client.get_cluster_credentials(
-            DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
+            DbUser=self.username, DbName=self.database, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
         )
 
+        logger.info("Successfully retrieved cluster credentials.")
         return cluster_creds["DbUser"], cluster_creds["DbPassword"]
 
     def sql_get_table_names_with_count(
