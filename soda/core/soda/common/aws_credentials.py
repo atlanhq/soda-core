@@ -1,9 +1,6 @@
 from typing import Optional
 
 import boto3
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class AwsCredentials:
@@ -52,10 +49,6 @@ class AwsCredentials:
         return isinstance(self.role_arn, str)
 
     def assume_role(self, role_session_name: str):
-        logger.info("Assuming role with ARN: %s", self.role_arn)
-        logger.info("Using external ID: %s", self.external_id)
-        logger.info("Role session name: %s", role_session_name)
-
         aws = boto3.session.Session(profile_name=self.profile_name) if self.profile_name else boto3
         self.sts_client = aws.client(
             "sts",
@@ -65,20 +58,16 @@ class AwsCredentials:
             aws_session_token=self.session_token,
         )
 
-        assume_role_params = {
+        assume_role_kwargs = {
             "RoleArn": self.role_arn,
-            "RoleSessionName": role_session_name
+            "RoleSessionName": role_session_name,
         }
         if self.external_id:
-            assume_role_params["ExternalId"] = self.external_id
+            assume_role_kwargs["ExternalId"] = self.external_id
 
-        try:
-            assumed_role_object = self.sts_client.assume_role(**assume_role_params)
-            logger.info("Successfully assumed role.")
-        except Exception as e:
-            logger.error("Error assuming role: %s", str(e))
-            raise
+        assumed_role_object = self.sts_client.assume_role(**assume_role_kwargs)
         credentials_dict = assumed_role_object["Credentials"]
+        
         return AwsCredentials(
             region_name=self.region_name,
             access_key_id=credentials_dict["AccessKeyId"],
