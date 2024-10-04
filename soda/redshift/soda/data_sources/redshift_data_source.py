@@ -64,9 +64,8 @@ class RedshiftDataSource(DataSource):
         )
 
         cluster_name = self.host.split(".")[0]
-        username = self.username or self.data_source_properties.get("username")
-        db_name = self.data_source_properties.get("database")
-
+        username = self.username
+        db_name = self.database
         cluster_creds = client.get_cluster_credentials(
             DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
         )
