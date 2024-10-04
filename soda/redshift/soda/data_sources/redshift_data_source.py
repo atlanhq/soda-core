@@ -22,6 +22,8 @@ class RedshiftDataSource(DataSource):
         self.connect_timeout = data_source_properties.get("connection_timeout_sec")
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
+        self.dbuser = data_source_properties.get("dbuser")
+        self.dbname = data_source_properties.get("dbname")
 
         if not self.username or not self.password:
             aws_credentials = AwsCredentials(
@@ -64,8 +66,8 @@ class RedshiftDataSource(DataSource):
         )
 
         cluster_name = self.host.split(".")[0]
-        username = self.username
-        db_name = self.database
+        username = self.dbuser if self.dbuser else self.username
+        db_name = self.dbname if self.dbname else self.database
         cluster_creds = client.get_cluster_credentials(
             DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
         )
