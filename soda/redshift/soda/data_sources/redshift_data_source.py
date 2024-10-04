@@ -22,6 +22,12 @@ class RedshiftDataSource(DataSource):
         self.connect_timeout = data_source_properties.get("connection_timeout_sec")
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
+        
+        self.logs.debug("Data Source Properties: %s", data_source_properties)
+        self.logs.debug("Using external_id: %s", data_source_properties.get("external_id"))
+        self.logs.debug("Using role_arn: %s", data_source_properties.get("role_arn"))
+        self.logs.debug("Using access_key_id: %s", data_source_properties.get("access_key_id"))
+        self.logs.debug("Using secret_access_key: %s", data_source_properties.get("secret_access_key"))
 
         if not self.username or not self.password:
             aws_credentials = AwsCredentials(
@@ -31,7 +37,7 @@ class RedshiftDataSource(DataSource):
                 session_token=data_source_properties.get("session_token"),
                 region_name=data_source_properties.get("region", "eu-west-1"),
                 profile_name=data_source_properties.get("profile_name"),
-                external_id=data_source_properties.get("external_id") 
+                external_id=data_source_properties.get("external_id")
             )
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
@@ -54,7 +60,7 @@ class RedshiftDataSource(DataSource):
         )
 
         self.logs.debug(f"Resolved AWS Credentials: {resolved_aws_credentials}")
-        self.logs.debug(f"Region Name after resolve_role: {resolved_aws_credentials.region_name}")        
+        self.logs.debug(f"Region Name after resolve_role: {resolved_aws_credentials.region_name}")
 
         client = boto3.client(
             "redshift",
