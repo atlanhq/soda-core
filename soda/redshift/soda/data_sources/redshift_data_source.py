@@ -28,10 +28,10 @@ class RedshiftDataSource(DataSource):
                 access_key_id=data_source_properties.get("access_key_id"),
                 secret_access_key=data_source_properties.get("secret_access_key"),
                 role_arn=data_source_properties.get("role_arn"),
-                external_id=data_source_properties.get("external_id"),
                 session_token=data_source_properties.get("session_token"),
                 region_name=data_source_properties.get("region", "eu-west-1"),
                 profile_name=data_source_properties.get("profile_name"),
+                external_id=data_source_properties.get("external_id"),
             )
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
