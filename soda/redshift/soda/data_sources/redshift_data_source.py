@@ -53,6 +53,9 @@ class RedshiftDataSource(DataSource):
             role_session_name="soda_redshift_get_cluster_credentials"
         )
 
+        self.logs.debug(f"Resolved AWS Credentials: {resolved_aws_credentials}")
+        self.logs.debug(f"Region Name after resolve_role: {resolved_aws_credentials.region_name}")        
+
         client = boto3.client(
             "redshift",
             region_name=resolved_aws_credentials.region_name,
