@@ -66,7 +66,7 @@ class RedshiftDataSource(DataSource):
             aws_session_token=resolved_aws_credentials.session_token,
         )
 
-        cluster_name = self.cluster_id
+        cluster_name = "bi-edw-db"
         username = self.dbuser if self.dbuser else self.username
         db_name = self.dbname if self.dbname else self.database
         cluster_creds = client.get_cluster_credentials(
