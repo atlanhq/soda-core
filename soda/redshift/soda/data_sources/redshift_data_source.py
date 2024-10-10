@@ -66,11 +66,12 @@ class RedshiftDataSource(DataSource):
             aws_session_token=resolved_aws_credentials.session_token,
         )
 
-        cluster_name = "bi-edw-db"
-        username = "atlan_user"
-        db_name = "bi_edw_db"
         cluster_creds = client.get_cluster_credentials(
-            DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
+            DbUser="atlan_user",              
+            DbName="bi_edw_db",                
+            ClusterIdentifier="bi-edw-db",     
+            AutoCreate=False,
+            DurationSeconds=3600
         )
 
         return cluster_creds["DbUser"], cluster_creds["DbPassword"]
