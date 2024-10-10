@@ -22,6 +22,9 @@ class RedshiftDataSource(DataSource):
         self.connect_timeout = data_source_properties.get("connection_timeout_sec")
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
+        self.dbuser = data_source_properties.get("dbuser")
+        self.dbname = data_source_properties.get("dbname")
+        self.cluster_id = data_source_properties.get("cluster_id")
 
         if not self.username or not self.password:
             aws_credentials = AwsCredentials(
@@ -31,6 +34,7 @@ class RedshiftDataSource(DataSource):
                 session_token=data_source_properties.get("session_token"),
                 region_name=data_source_properties.get("region", "eu-west-1"),
                 profile_name=data_source_properties.get("profile_name"),
+                external_id=data_source_properties.get("external_id"),
             )
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
@@ -52,19 +56,22 @@ class RedshiftDataSource(DataSource):
             role_session_name="soda_redshift_get_cluster_credentials"
         )
 
+        region_name = resolved_aws_credentials.region_name or "us-west-2"
+
         client = boto3.client(
             "redshift",
-            region_name=resolved_aws_credentials.region_name,
+            region_name=region_name,
             aws_access_key_id=resolved_aws_credentials.access_key_id,
             aws_secret_access_key=resolved_aws_credentials.secret_access_key,
             aws_session_token=resolved_aws_credentials.session_token,
         )
 
-        cluster_name = self.host.split(".")[0]
-        username = self.username
-        db_name = self.database
         cluster_creds = client.get_cluster_credentials(
-            DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
+            DbUser="atlan_user",              
+            DbName="bi_edw_db",                
+            ClusterIdentifier="bi-edw-db",     
+            AutoCreate=False,
+            DurationSeconds=3600
         )
 
         return cluster_creds["DbUser"], cluster_creds["DbPassword"]
