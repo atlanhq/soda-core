@@ -68,12 +68,9 @@ class RedshiftDataSource(DataSource):
         cluster_name = self.host.split(".")[0]
         username = self.dbuser if self.dbuser else self.username
         db_name = self.dbname if self.dbname else self.database
-        cluster_creds = client.get_cluster_credentials_with_iam(
-            DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
+        cluster_creds = client.get_cluster_credentials(
+            DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
         )
-        # cluster_creds = client.get_cluster_credentials(
-        #     DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
-        # )
 
         return cluster_creds["DbUser"], cluster_creds["DbPassword"]
 
