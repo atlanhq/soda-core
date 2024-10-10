@@ -55,7 +55,7 @@ class RedshiftDataSource(DataSource):
             role_session_name="soda_redshift_get_cluster_credentials"
         )
 
-        region_name = resolved_aws_credentials.region_name or "eu-west-1"
+        region_name = resolved_aws_credentials.region_name or "us-west-2"
 
         client = boto3.client(
             "redshift",
