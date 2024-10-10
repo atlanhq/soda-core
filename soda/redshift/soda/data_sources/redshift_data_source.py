@@ -10,6 +10,15 @@ from soda.execution.data_source import DataSource
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(
+    level=logging.DEBUG,  
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 class RedshiftDataSource(DataSource):
     TYPE = "redshift"
@@ -55,8 +64,10 @@ class RedshiftDataSource(DataSource):
         resolved_aws_credentials = aws_credentials.resolve_role(
             role_session_name="soda_redshift_get_cluster_credentials"
         )
+        logger.debug(f"Resolved AWS Credentials: {resolved_aws_credentials}")
 
         region_name = resolved_aws_credentials.region_name or "us-west-2"
+        logger.debug(f"Region Name: {region_name}")
 
         client = boto3.client(
             "redshift",
@@ -65,13 +76,28 @@ class RedshiftDataSource(DataSource):
             aws_secret_access_key=resolved_aws_credentials.secret_access_key,
             aws_session_token=resolved_aws_credentials.session_token,
         )
+        logger.debug("Boto3 Redshift client initialized.")
 
         cluster_name = "bi-edw-db"
         username = self.dbuser if self.dbuser else self.username
         db_name = self.dbname if self.dbname else self.database
-        cluster_creds = client.get_cluster_credentials(
-            DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
-        )
+
+        logger.debug(f"Using cluster name: {cluster_name}")
+        logger.debug(f"Using DbUser: {username}")
+        logger.debug(f"Using DbName: {db_name}")
+
+        try:
+            cluster_creds = client.get_cluster_credentials(
+                DbUser=username,
+                DbName=db_name,
+                ClusterIdentifier=cluster_name,
+                AutoCreate=False,
+                DurationSeconds=3600
+            )
+            logger.debug(f"Cluster Credentials Retrieved: {cluster_creds}")
+        except botocore.exceptions.ClientError as error:
+            logger.error(f"Error retrieving cluster credentials: {error}")
+            raise
 
         return cluster_creds["DbUser"], cluster_creds["DbPassword"]
 
