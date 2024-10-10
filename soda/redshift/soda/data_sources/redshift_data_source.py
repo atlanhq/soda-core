@@ -24,6 +24,7 @@ class RedshiftDataSource(DataSource):
         self.password = data_source_properties.get("password")
         self.dbuser = data_source_properties.get("dbuser")
         self.dbname = data_source_properties.get("dbname")
+        self.cluster_id = data_source_properties.get("cluster_id")
 
         if not self.username or not self.password:
             aws_credentials = AwsCredentials(
@@ -65,7 +66,7 @@ class RedshiftDataSource(DataSource):
             aws_session_token=resolved_aws_credentials.session_token,
         )
 
-        cluster_name = self.host.split(".")[0]
+        cluster_name = self.cluster_id
         username = self.dbuser if self.dbuser else self.username
         db_name = self.dbname if self.dbname else self.database
         cluster_creds = client.get_cluster_credentials(
