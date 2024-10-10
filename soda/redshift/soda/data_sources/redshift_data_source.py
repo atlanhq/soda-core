@@ -67,8 +67,8 @@ class RedshiftDataSource(DataSource):
         )
 
         cluster_name = "bi-edw-db"
-        username = self.dbuser if self.dbuser else self.username
-        db_name = self.dbname if self.dbname else self.database
+        username = "atlan_user"
+        db_name = "bi_edw_db"
         cluster_creds = client.get_cluster_credentials(
             DbUser=username, DbName=db_name, ClusterIdentifier=cluster_name, AutoCreate=False, DurationSeconds=3600
         )
