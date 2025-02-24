@@ -104,7 +104,7 @@ python-dotenv==1.0.0
     # via -r dev-requirements.in
 readme-renderer==32.0
     # via -r dev-requirements.in
-requests==2.31.0
+requests==2.32.2
     # via docker
 schema==0.7.5
     # via tbump
