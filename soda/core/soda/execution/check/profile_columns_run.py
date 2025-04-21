@@ -50,7 +50,7 @@ class ProfileColumnsRun:
                         numeric_column_profiler = NumericColumnProfiler(
                             data_source_scan=self.data_source_scan,
                             profile_columns_cfg=self.profile_columns_cfg,
-                            table_name=table_name,
+                            table_name=self.quote_table(table_name),
                             column_name=column_name,
                             column_data_type=column_data_type,
                         )
@@ -61,7 +61,7 @@ class ProfileColumnsRun:
                         text_column_profiler = TextColumnProfiler(
                             data_source_scan=self.data_source_scan,
                             profile_columns_cfg=self.profile_columns_cfg,
-                            table_name=table_name,
+                            table_name=self.quote_table(table_name),
                             column_name=column_name,
                             column_data_type=column_data_type,
                         )
@@ -115,3 +115,7 @@ class ProfileColumnsRun:
             f"https://go.soda.io/display-profile",
             location=self.profile_columns_cfg.location,
         )
+
+    @staticmethod
+    def quote_table( table_name: str) -> str:
+        return f'"{table_name}"'
