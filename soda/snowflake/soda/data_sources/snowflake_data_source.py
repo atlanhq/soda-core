@@ -193,7 +193,7 @@ class SnowflakeDataSource(DataSource):
         return sql
 
     def _create_table_prefix(self):
-        return ".".join([p for p in [self.database, self.schema] if p is not None])
+        return ".".join([p for p in [self.quote_table(self.database), self.quote_table(self.schema)] if p is not None])
 
     def default_casify_sql_function(self) -> str:
         return "upper"
