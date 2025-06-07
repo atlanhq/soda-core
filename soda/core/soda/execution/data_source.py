@@ -458,9 +458,7 @@ class DataSource:
 
             table_name_pattern = pattern.get("table_name_pattern")
             if table_name_pattern is not None:
-                table_name_filter = (
-                    f"({self.default_casify_sql_function()}({self.column_metadata_table_name()}) LIKE '{self.default_casify_table_name(table_name_pattern)}')"
-                )
+                table_name_filter = f"({self.default_casify_sql_function()}({self.column_metadata_table_name()}) LIKE '{self.default_casify_table_name(table_name_pattern)}')"
                 sql_filter.append(table_name_filter)
 
             column_name_pattern = pattern.get("column_name_pattern")
@@ -1304,7 +1302,7 @@ class DataSource:
 
     def default_casify_table_name(self, identifier: str) -> str:
         """Formats table identifier to e.g. a default case for a given data source."""
-        return identifier
+        return identifier.lower()
 
     def default_casify_column_name(self, identifier: str) -> str:
         """Formats column identifier to e.g. a default case for a given data source."""
