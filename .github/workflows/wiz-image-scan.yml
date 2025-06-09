@@ -1,0 +1,47 @@
+name: Wiz Image Scan
+on:
+  push:
+    branches:
+      - main
+      - wiz-image-scan-main
+  pull_request:
+    branches:
+      - main
+jobs:
+  scan:
+    name: Wiz Image Scan
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push docker image
+        id: docker_build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ github.event.repository.name }}:latest
+          outputs: type=docker,dest=/tmp/${{ github.event.repository.name }}.tar
+
+      - name: Download Wiz CLI
+        run: curl -o wizcli https://wizcli.app.wiz.io/latest/wizcli && chmod +x wizcli
+
+      - name: Authenticate to Wiz
+        run: ./wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+        env:
+          WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
+          WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
+
+      - name: Run wiz-cli docker image scan
+        run: |
+          docker load --input /tmp/${{ github.event.repository.name }}.tar
+          ./wizcli docker scan --image ${{ github.event.repository.name }}:latest --policy "$POLICY"
