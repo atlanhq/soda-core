@@ -115,7 +115,7 @@ class DataSource:
     # Keys represent the data_source type, values are lists of "aliases" that can be used in SodaCL as synonyms.
     SCHEMA_CHECK_TYPES_MAPPING: dict = {
         "character varying": ["varchar", "text"],
-        "double precision": ["decimal"],
+        "double precision": ["decimal", "numeric"],
         "timestamp without time zone": ["timestamp"],
         "timestamp with time zone": ["timestamptz"],
     }
@@ -226,9 +226,14 @@ class DataSource:
         self.connection = None
         self.database: str | None = data_source_properties.get("database")
         self.schema: str | None = data_source_properties.get("schema")
+        self.connection_parameters: dict = data_source_properties.get("connection_parameters", {})
         self.table_prefix: str | None = self._create_table_prefix()
         # self.data_source_scan is initialized in create_data_source_scan(...) below
         self.data_source_scan: DataSourceScan | None = None
+        # Temporarily introduced to migrate some "wrongly implemented" data sources.
+        # See https://sodadata.atlassian.net/browse/CLOUD-5446
+        self.migrate_data_source_name = None
+        self.quote_tables: bool = data_source_properties.get("quote_tables", False)
 
     def get_connection_parameters_string(self) -> str:
         return ";".join(
@@ -301,6 +306,12 @@ class DataSource:
         if (
             actual_type in self.SCHEMA_CHECK_TYPES_MAPPING
             and expected_type in self.SCHEMA_CHECK_TYPES_MAPPING[actual_type]
+        ):
+            return True
+
+        if (
+            expected_type in self.SCHEMA_CHECK_TYPES_MAPPING
+            and actual_type in self.SCHEMA_CHECK_TYPES_MAPPING[expected_type]
         ):
             return True
 
