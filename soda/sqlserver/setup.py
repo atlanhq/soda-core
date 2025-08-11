@@ -6,10 +6,7 @@ package_name = "soda-core-sqlserver"
 package_version = "3.0.48"
 description = "Soda Core SQL Server Package"
 
-requires = [
-    f"soda-core=={package_version}",
-    "pyodbc",
-]
+requires = [f"soda-core=={package_version}", "pyodbc", "azure-identity~=1.17.1"]
 # TODO Fix the params
 setup(
     name=package_name,
