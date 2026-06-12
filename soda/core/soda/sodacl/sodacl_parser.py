@@ -1535,6 +1535,19 @@ class SodaCLParser(Parser):
         data_source_scan_cfg = self.get_data_source_scan_cfgs()
         data_source_scan_cfg.add_data_source_cfg(profile_columns_cfg)
 
+        # Optional overrides for profiling limits; fall back to ProfileColumnsCfg defaults.
+        for limit_key in ("limit_frequent_values", "limit_mins_maxs"):
+            limit_value = header_content.get(limit_key)
+            if limit_value is None:
+                continue
+            if isinstance(limit_value, int) and not isinstance(limit_value, bool) and limit_value > 0:
+                setattr(profile_columns_cfg, limit_key, limit_value)
+            else:
+                self.logs.error(
+                    f'"{limit_key}" must be a positive integer in profile columns',
+                    location=profile_columns_cfg.location,
+                )
+
         columns = header_content.get("columns")
         if isinstance(columns, list):
             for column_expression in columns:
