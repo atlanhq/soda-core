@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 class RedshiftDataSource(DataSource):
     TYPE = "redshift"
 
+    # Redshift Spectrum / external tables surface Glue-Hive type names through SVV_COLUMNS, where text
+    # columns report as 'string' instead of a native Redshift type name. Without 'string' here, every text
+    # column on an external table is skipped by profiling with "not in supported profiling data types".
+    TEXT_TYPES_FOR_PROFILING = DataSource.TEXT_TYPES_FOR_PROFILING + ["string"]
+
     def __init__(self, logs: Logs, data_source_name: str, data_source_properties: dict):
         super().__init__(logs, data_source_name, data_source_properties)
 
