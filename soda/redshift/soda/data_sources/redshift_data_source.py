@@ -19,12 +19,21 @@ class RedshiftDataSource(DataSource):
     # column on an external table is skipped by profiling with "not in supported profiling data types".
     TEXT_TYPES_FOR_PROFILING = DataSource.TEXT_TYPES_FOR_PROFILING + ["string"]
 
+    # psycopg2 has no query timeout of its own, so a query the warehouse never answers leaves the
+    # scan blocked on the socket forever and the rest of the run is never profiled. This is a ceiling
+    # on pathological queries, not a performance target - profiling queries normally take seconds.
+    # Override with query_timeout_sec in the data source connection properties, or 0 to disable. On a
+    # profiling playbook that arrives through the "Runtime Connection Properties" field, which is
+    # merged over the stored connection, e.g. {"query_timeout_sec": 900}.
+    DEFAULT_QUERY_TIMEOUT_SEC = 3600
+
     def __init__(self, logs: Logs, data_source_name: str, data_source_properties: dict):
         super().__init__(logs, data_source_name, data_source_properties)
 
         self.host = data_source_properties.get("host", "localhost")
         self.port = data_source_properties.get("port", "5439")
         self.connect_timeout = data_source_properties.get("connection_timeout_sec")
+        self.query_timeout_sec = self.__resolve_query_timeout_sec(data_source_properties.get("query_timeout_sec"))
         self.username = data_source_properties.get("username")
         self.password = data_source_properties.get("password")
         self.dbuser = data_source_properties.get("dbuser")
@@ -43,8 +52,51 @@ class RedshiftDataSource(DataSource):
             )
             self.username, self.password = self.__get_cluster_credentials(aws_credentials)
 
+    def __resolve_query_timeout_sec(self, value) -> int:
+        """Resolve query_timeout_sec to whole seconds, where only an explicit 0 disables the timeout.
+
+        Anything unusable falls back to the default rather than to no timeout at all: silently
+        dropping the ceiling is the failure this exists to prevent, so a bad value must not be a
+        quieter way of reaching it. Booleans are rejected because YAML reads `yes` as True, which
+        int() turns into a 1 second timeout that empties every profile.
+        """
+        if value is None:
+            return self.DEFAULT_QUERY_TIMEOUT_SEC
+
+        timeout_sec = None
+        if isinstance(value, int) and not isinstance(value, bool):
+            timeout_sec = value
+        elif isinstance(value, str):
+            try:
+                timeout_sec = int(value.strip())
+            except ValueError:
+                pass
+
+        if timeout_sec is None or timeout_sec < 0:
+            self.logs.error(
+                f"Invalid query_timeout_sec {value!r} on data source '{self.data_source_name}': expected whole "
+                f"seconds >= 0, where 0 disables the timeout. Using the default of "
+                f"{self.DEFAULT_QUERY_TIMEOUT_SEC}s."
+            )
+            return self.DEFAULT_QUERY_TIMEOUT_SEC
+
+        return timeout_sec
+
+    def connection_options(self) -> Optional[str]:
+        options = []
+        if self.schema:
+            options.append(f"-c search_path={self.schema}")
+
+        if self.query_timeout_sec > 0:
+            options.append(f"-c statement_timeout={self.query_timeout_sec * 1000}")
+
+        return " ".join(options) if options else None
+
     def connect(self):
-        options = f"-c search_path={self.schema}" if self.schema else None
+        options = self.connection_options()
+
+        # Logged so that a run's own logs answer whether the timeout was in force, and at what value.
+        self.logs.info(f"Redshift query timeout: {self.query_timeout_sec}s (0 disables), options: {options}")
 
         self.connection = psycopg2.connect(
             user=self.username,
