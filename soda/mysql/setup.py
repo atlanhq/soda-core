@@ -8,12 +8,14 @@ description = "Soda Core MySQL Package"
 
 requires = [
     f"soda-core=={package_version}",
-    "mysql-connector-python==8.0.30",
+    "mysql-connector-python>=9.1.0,<10",
 ]
 # TODO Fix the params
 setup(
     name=package_name,
     version=package_version,
     install_requires=requires,
+    # mysql-connector-python 9.1 dropped Python 3.8.
+    python_requires=">=3.9",
     packages=find_namespace_packages(include=["soda*"]),
 )
