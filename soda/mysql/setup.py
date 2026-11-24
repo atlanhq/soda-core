@@ -15,5 +15,7 @@ setup(
     name=package_name,
     version=package_version,
     install_requires=requires,
+    # mysql-connector-python 9.1 dropped Python 3.8.
+    python_requires=">=3.9",
     packages=find_namespace_packages(include=["soda*"]),
 )

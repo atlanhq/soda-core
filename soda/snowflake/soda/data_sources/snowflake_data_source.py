@@ -116,6 +116,9 @@ class SnowflakeDataSource(DataSource):
             client_prefetch_threads=self.client_prefetch_threads,
             authenticator=self.authenticator,
             application="Soda Core",
+            # Connector 4.8 turned OCSP revocation checks off unless this is
+            # passed; 3.x ran them fail-open by default. Keep that behaviour.
+            ocsp_fail_open=True,
         )
 
     def __get_private_key(self):
